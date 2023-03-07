@@ -1,48 +1,51 @@
 package com.mugiranezaJ.bBoss.backend.controller;
 
 
+import com.mugiranezaJ.bBoss.backend.config.jwt.JwtUtils;
+import com.mugiranezaJ.bBoss.backend.dto.SignupRequest;
 import com.mugiranezaJ.bBoss.backend.model.LoginRequest;
+import com.mugiranezaJ.bBoss.backend.model.Role;
+import com.mugiranezaJ.bBoss.backend.model.RoleType;
 import com.mugiranezaJ.bBoss.backend.model.User;
+import com.mugiranezaJ.bBoss.backend.repository.RoleRepository;
 import com.mugiranezaJ.bBoss.backend.repository.UserRepository;
+import com.mugiranezaJ.bBoss.backend.payload.response.ResponseBody;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
-import java.awt.*;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 
-@CrossOrigin(origins = "http://localhost:8081")
+@CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
-@RequestMapping("api/v1")
+@RequestMapping("api/v1/auth")
 public class UserController {
 
     @Autowired
-    UserRepository userRepository;
+    private UserRepository userRepository;
 
     Map<String, Object> response;
+
+    @Autowired
+    private AuthenticationManager authenticationManager;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private JwtUtils jwtUtils;
+
+    @Autowired
+    RoleRepository roleRepository;
+
     @GetMapping("/welcome")
     public ResponseEntity<Map<String, Object>> sayHi(){
         response.put("message", "hi there! welcome to bBoss api.");
         return new ResponseEntity<>(response, HttpStatus.OK);
-    }
-
-    @PostMapping("/register")
-    public ResponseEntity<Map<String, Object>> createUser(@RequestBody User user){
-        response = new HashMap<>();
-        try {
-            User newUser = userRepository.save(new User(user));
-            response.put("message", "user created successfully");
-            response.put("data", newUser);
-            return new ResponseEntity<>(response, HttpStatus.CREATED);
-        }catch (Exception e){
-            response.put("message", "There was error while creating a user, please try again");
-            response.put("error", e);
-            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
-        }
     }
 
     @PostMapping("/login")
@@ -63,5 +66,71 @@ public class UserController {
             response.put("message", "login failed, please try again later");
             return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
         }
+    }
+
+    @PostMapping("/signup")
+    public ResponseEntity<?> registerUser(@Valid @RequestBody SignupRequest signUpRequest) {
+        if (userRepository.existsByUsername(signUpRequest.getUsername())) {
+            return new ResponseEntity<>(new ResponseBody(
+                    HttpStatus.CONFLICT.value(),
+                    "Username is already taken",
+                    null), HttpStatus.CONFLICT);
+        }
+
+        if (userRepository.existsByEmail(signUpRequest.getEmail())) {
+            return new ResponseEntity<>(new ResponseBody(
+                    HttpStatus.CONFLICT.value(),
+                    "Email is already in use",
+                    null), HttpStatus.CONFLICT);
+        }
+
+        // Create new user's account
+        User user = new User(
+                signUpRequest.getFirstName(),
+                signUpRequest.getLastName(),
+                signUpRequest.getUsername(),
+                signUpRequest.getEmail(),
+                signUpRequest.getPhone(),
+                passwordEncoder.encode(signUpRequest.getPassword()),
+                signUpRequest.isActive()
+                );
+
+        Set<String> strRoles = signUpRequest.getRole();
+        Set<Role> roles = new HashSet<>();
+
+        if (strRoles == null) {
+            Role userRole = roleRepository.findByName(RoleType.ROLE_USER)
+                    .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
+            roles.add(userRole);
+        } else {
+            strRoles.forEach(role -> {
+                switch (role) {
+                    case "admin":
+                        Role adminRole = roleRepository.findByName(RoleType.ROLE_ADMIN)
+                                .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
+                        roles.add(adminRole);
+
+                        break;
+                    case "agent":
+                        Role modRole = roleRepository.findByName(RoleType.ROLE_AGENT)
+                                .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
+                        roles.add(modRole);
+
+                        break;
+                    default:
+                        Role userRole = roleRepository.findByName(RoleType.ROLE_USER)
+                                .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
+                        roles.add(userRole);
+                }
+            });
+        }
+
+        user.setRoles(roles);
+        userRepository.save(user);
+
+        return new ResponseEntity<>(new ResponseBody(
+                HttpStatus.CREATED.value(),
+                "User registered successfully!",
+                null), HttpStatus.CREATED);
     }
 }

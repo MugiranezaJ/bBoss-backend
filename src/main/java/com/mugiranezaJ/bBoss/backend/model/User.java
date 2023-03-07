@@ -3,6 +3,8 @@ package com.mugiranezaJ.bBoss.backend.model;
 import jakarta.persistence.*;
 import org.springframework.data.annotation.PersistenceConstructor;
 
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 @Entity
@@ -18,14 +20,17 @@ public class User {
     @Column(name = "lastName", nullable = false)
     private String lastName;
 
+    @Column(name = "username", nullable = false)
+    private String username;
+
     @Column(name = "email", nullable = false)
     private String email;
 
     @Column(name = "phone", nullable = false)
     private String phone;
 
-    @Column(name = "role", nullable = false, columnDefinition = "VARCHAR(50) DEFAULT 'user'")
-    private String role;
+//    @Column(name = "role", nullable = false, columnDefinition = "VARCHAR(50) DEFAULT 'user'")
+//    private String role;
 
     @Column(name = "password", nullable = false)
     private String password;
@@ -33,15 +38,22 @@ public class User {
     @Column(name = "isActive", columnDefinition = "")
     private boolean isActive;
 
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(	name = "user_roles",
+            joinColumns = @JoinColumn(name = "user_id"),
+            inverseJoinColumns = @JoinColumn(name = "role_id"))
+    private Set<Role> roles = new HashSet<>();
+
     public User() {}
     @PersistenceConstructor
-    public User(UUID id, String firstName, String lastName, String email, String phone, String role, String password, boolean isActive) {
-        this.id = id;
+    public User(String firstName, String lastName, String username, String email, String phone, String password, boolean isActive) {
+//        this.id = id;
         this.firstName = firstName;
         this.lastName = lastName;
+        this.username = username;
         this.email = email;
         this.phone = phone;
-        this.role = role;
+//        this.roles = roles;
         this.password = password;
         this.isActive = isActive;
     }
@@ -50,9 +62,10 @@ public class User {
         this.id = user.id;
         this.firstName = user.firstName;
         this.lastName = user.lastName;
+        this.username = user.username;
         this.email = user.email;
         this.phone = user.phone;
-        this.role = user.role;
+        this.roles = user.roles;
         this.password = user.password;
         this.isActive = user.isActive;
     }
@@ -81,6 +94,13 @@ public class User {
         this.lastName = lastName;
     }
 
+    public String getUsername(){
+        return username;
+    }
+
+    public void setUsername(String username){
+        this.username = username;
+    }
     public String getEmail() {
         return email;
     }
@@ -97,12 +117,12 @@ public class User {
         this.phone = phone;
     }
 
-    public String getRole() {
-        return role;
+    public Set<Role> getRoles() {
+        return roles;
     }
 
-    public void setRole(String role) {
-        this.role = role;
+    public void setRoles(Set<Role> roles) {
+        this.roles = roles;
     }
 
     public String getPassword() {
